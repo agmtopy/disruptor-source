@@ -145,15 +145,15 @@ public final class SingleProducerSequencer extends SingleProducerSequencerFields
         //this.nextValue作为上一次写入索引
         long nextValue = this.nextValue;
 
-        //下一次索引+n
+        //关注点1:下一次索引+n
         long nextSequence = nextValue + n;
 
-        //wrapPoint:理论上的最晚可以消费的索引地址
+        //关注点2:wrapPoint:理论上的最晚可以消费的索引地址
         long wrapPoint = nextSequence - bufferSize;
         //获取缓存下来的最小消费者序号
         long cachedGatingSequence = this.cachedValue;
 
-        //判断nextIndex是否超过当前最小的消费者序号
+        //关注点3:判断nextIndex是否超过当前最小的消费者序号
         if (wrapPoint > cachedGatingSequence || cachedGatingSequence > nextValue)
         {
             //重新设置内存屏障
@@ -162,7 +162,7 @@ public final class SingleProducerSequencer extends SingleProducerSequencerFields
             //设置局部变量用于暂存最慢的消费索引
             long minSequence;
 
-            //循环等待,生产者等待最慢的消费者消费出空闲的位置
+            //关注点4:循环等待,生产者等待最慢的消费者消费出空闲的位置
             while (wrapPoint > (minSequence = Util.getMinimumSequence(gatingSequences, nextValue)))
             {
                 LockSupport.parkNanos(1L); // TODO: Use waitStrategy to spin?
