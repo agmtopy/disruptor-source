@@ -133,29 +133,41 @@ public final class SingleProducerSequencer extends SingleProducerSequencerFields
     @Override
     public long next(final int n)
     {
+        //判断线程和生产者是否是最开始的匹配关系,首次获取nextSeq时,会将两者之间存到Map中
         assert sameThread() : "Accessed by two threads - use ProducerType.MULTI!";
 
+        //检测是否超过有效索引长度
         if (n < 1 || n > bufferSize)
         {
             throw new IllegalArgumentException("n must be > 0 and < bufferSize");
         }
 
+        //this.nextValue作为上一次写入索引
         long nextValue = this.nextValue;
 
+        //下一次索引+n
         long nextSequence = nextValue + n;
+
+        //wrapPoint:理论上的最晚可以消费的索引地址
         long wrapPoint = nextSequence - bufferSize;
+        //获取缓存下来的最小消费者序号
         long cachedGatingSequence = this.cachedValue;
 
+        //判断nextIndex是否超过当前最小的消费者序号
         if (wrapPoint > cachedGatingSequence || cachedGatingSequence > nextValue)
         {
+            //重新设置内存屏障
             cursor.setVolatile(nextValue);  // StoreLoad fence
 
+            //设置局部变量用于暂存最慢的消费索引
             long minSequence;
+
+            //循环等待,生产者等待最慢的消费者消费出空闲的位置
             while (wrapPoint > (minSequence = Util.getMinimumSequence(gatingSequences, nextValue)))
             {
                 LockSupport.parkNanos(1L); // TODO: Use waitStrategy to spin?
             }
-
+            //重新设置位置
             this.cachedValue = minSequence;
         }
 

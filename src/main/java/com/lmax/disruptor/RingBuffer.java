@@ -20,6 +20,7 @@ import com.lmax.disruptor.dsl.ProducerType;
 
 abstract class RingBufferPad
 {
+    //缓存行填充byte
     protected byte
         p10, p11, p12, p13, p14, p15, p16, p17,
         p20, p21, p22, p23, p24, p25, p26, p27,
@@ -32,11 +33,16 @@ abstract class RingBufferPad
 
 abstract class RingBufferFields<E> extends RingBufferPad
 {
+    //数组前后空闲填充数量,防止伪共享
     private static final int BUFFER_PAD = 32;
 
+    //索引掩码
     private final long indexMask;
+    //有界事件数组
     private final E[] entries;
+    //数组大小
     protected final int bufferSize;
+    //控制器
     protected final Sequencer sequencer;
 
     @SuppressWarnings("unchecked")
@@ -45,6 +51,7 @@ abstract class RingBufferFields<E> extends RingBufferPad
         final Sequencer sequencer)
     {
         this.sequencer = sequencer;
+        //使用sequencer中的BufferSize作为数组长度
         this.bufferSize = sequencer.getBufferSize();
 
         if (bufferSize < 1)
@@ -57,6 +64,7 @@ abstract class RingBufferFields<E> extends RingBufferPad
         }
 
         this.indexMask = bufferSize - 1;
+        //创建事件数组
         this.entries = (E[]) new Object[bufferSize + 2 * BUFFER_PAD];
         fill(eventFactory);
     }
@@ -65,6 +73,7 @@ abstract class RingBufferFields<E> extends RingBufferPad
     {
         for (int i = 0; i < bufferSize; i++)
         {
+            //对数组进行填充,可以看到前BUFFER_PAD和后BUFFER_PAD的位置没有进行填充
             entries[BUFFER_PAD + i] = eventFactory.newInstance();
         }
     }
@@ -202,8 +211,10 @@ public final class RingBuffer<E> extends RingBufferFields<E> implements Cursored
         switch (producerType)
         {
             case SINGLE:
+                //单个生产者
                 return createSingleProducer(factory, bufferSize, waitStrategy);
             case MULTI:
+                //多个生产者
                 return createMultiProducer(factory, bufferSize, waitStrategy);
             default:
                 throw new IllegalStateException(producerType.toString());
