@@ -74,6 +74,7 @@ public class Sequence extends RhsPadding
      */
     public Sequence(final long initialValue)
     {
+        //写屏障,保证写操作不会被指令重排序
         VarHandle.releaseFence();
         this.value = initialValue;
     }

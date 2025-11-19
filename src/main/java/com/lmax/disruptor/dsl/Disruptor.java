@@ -509,25 +509,31 @@ public class Disruptor<T>
     {
         checkNotStarted();
 
+        //每个消费者一个Sequence
         final Sequence[] processorSequences = new Sequence[eventHandlers.length];
         final SequenceBarrier barrier = ringBuffer.newBarrier(barrierSequences);
 
+        //依次处理EventHandler
         for (int i = 0, eventHandlersLength = eventHandlers.length; i < eventHandlersLength; i++)
         {
+            //取出EventHandler包装成BatchEventProcessor
             final EventHandler<? super T> eventHandler = eventHandlers[i];
 
             final BatchEventProcessor<T> batchEventProcessor =
                     new BatchEventProcessorBuilder().build(ringBuffer, barrier, eventHandler);
-
+            //设置异常处理器
             if (exceptionHandler != null)
             {
                 batchEventProcessor.setExceptionHandler(exceptionHandler);
             }
 
+            //核心关键点1:用consumerRepository来存储EventProcessor
             consumerRepository.add(batchEventProcessor, eventHandler, barrier);
+            //对序列数组进行初始化
             processorSequences[i] = batchEventProcessor.getSequence();
         }
 
+        //核心关键点2:更新消费者门闩,防止生产者将未消费位置覆盖
         updateGatingSequencesForNextInChain(barrierSequences, processorSequences);
 
         return new EventHandlerGroup<>(this, consumerRepository, processorSequences);

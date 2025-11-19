@@ -80,6 +80,7 @@ abstract class RingBufferFields<E> extends RingBufferPad
 
     protected final E elementAt(final long sequence)
     {
+        //先加数组前BUFFER_PAD位插入的空白,在进行位运算返回事件
         return entries[BUFFER_PAD + (int) (sequence & indexMask)];
     }
 }

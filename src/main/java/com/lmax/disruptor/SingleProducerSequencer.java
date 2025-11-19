@@ -234,7 +234,9 @@ public final class SingleProducerSequencer extends SingleProducerSequencerFields
     @Override
     public void publish(final long sequence)
     {
+        //设置最大序列号
         cursor.set(sequence);
+        //通知消费者等待策略唤醒
         waitStrategy.signalAllWhenBlocking();
     }
 
