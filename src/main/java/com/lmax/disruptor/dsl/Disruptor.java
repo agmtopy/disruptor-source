@@ -572,13 +572,19 @@ public class Disruptor<T>
 
     private void updateGatingSequencesForNextInChain(final Sequence[] barrierSequences, final Sequence[] processorSequences)
     {
+        //消费者处理序列长度大于0时,才进行处理
         if (processorSequences.length > 0)
         {
+            // 1. 把新的消费者序列 (B) 加入 RingBuffer 的监控名单
             ringBuffer.addGatingSequences(processorSequences);
+            // 2. 把旧的屏障序列 (A) 从监控名单移除
+            // 因为 B 依赖 A，所以 B 肯定比 A 慢，RingBuffer 只要盯着 B 就够了
             for (final Sequence barrierSequence : barrierSequences)
             {
                 ringBuffer.removeGatingSequence(barrierSequence);
             }
+            // 3. 同时也告诉这个消费者组，下次如果再有人接在 B 后面（比如 .then(C)），
+            // B 就变成了由于旧的序列，需要被移除
             consumerRepository.unMarkEventProcessorsAsEndOfChain(barrierSequences);
         }
     }
