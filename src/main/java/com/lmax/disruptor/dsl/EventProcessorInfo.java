@@ -65,12 +65,14 @@ class EventProcessorInfo implements ConsumerInfo
     @Override
     public void start(final ThreadFactory threadFactory)
     {
+        //通过线程工厂创建一个指定好任务的线程
         final Thread thread = threadFactory.newThread(eventprocessor);
         if (null == thread)
         {
             throw new RuntimeException("Failed to create thread to run: " + eventprocessor);
         }
 
+        //启动线程
         thread.start();
     }
 

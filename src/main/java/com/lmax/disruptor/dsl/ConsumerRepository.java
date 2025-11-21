@@ -56,8 +56,10 @@ class ConsumerRepository
         consumerInfos.add(consumerInfo);
     }
 
+    //启动全部消费者
     public void startAll(final ThreadFactory threadFactory)
     {
+        //将threadFactory传入ConsumerHandler中进行处理
         consumerInfos.forEach(c -> c.start(threadFactory));
     }
 

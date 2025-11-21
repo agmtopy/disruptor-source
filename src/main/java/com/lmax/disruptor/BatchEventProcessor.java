@@ -109,16 +109,21 @@ public final class BatchEventProcessor<T>
     @Override
     public void run()
     {
+        //running标识为AtomicInteger类型,通过CAS的方式修改Processor的状态
+        //compareAndExchange和compareAndSet的区别在于会返回当前内存中的值,不需要再次get来进行判断
         int witnessValue = running.compareAndExchange(IDLE, RUNNING);
         if (witnessValue == IDLE) // Successful CAS
         {
+            //清除屏障的等待标识
             sequenceBarrier.clearAlert();
 
+            //通知eventHandler,processor启动
             notifyStart();
             try
             {
                 if (running.get() == RUNNING)
                 {
+                    //开始循环处理事件
                     processEvents();
                 }
             }
@@ -144,32 +149,43 @@ public final class BatchEventProcessor<T>
     private void processEvents()
     {
         T event = null;
+        //设置需要处理的下一个序列号
         long nextSequence = sequence.get() + 1L;
 
         while (true)
         {
             final long startOfBatchSequence = nextSequence;
+            //外层try-catch处理系统异常
             try
             {
+                //内层try-catch处理可重试异常
                 try
                 {
+                    //检测是否可以进行消费:是否有可消费的消息,是否前置消费处理器已处理完成
+                    //返回的
                     final long availableSequence = sequenceBarrier.waitFor(nextSequence);
+                    //设置单次消费的最大限制
                     final long endOfBatchSequence = min(nextSequence + batchLimitOffset, availableSequence);
 
                     if (nextSequence <= endOfBatchSequence)
                     {
+                        //通知开始处理
                         eventHandler.onBatchStart(endOfBatchSequence - nextSequence + 1, availableSequence - nextSequence + 1);
                     }
 
+                    //循环开始处理
                     while (nextSequence <= endOfBatchSequence)
                     {
+                        //从RingBuffer数组中获取元素
                         event = dataProvider.get(nextSequence);
+                        //通知事件
                         eventHandler.onEvent(event, nextSequence, nextSequence == endOfBatchSequence);
                         nextSequence++;
                     }
 
                     retriesAttempted = 0;
 
+                    //设置本次读取的终止位置
                     sequence.set(endOfBatchSequence);
                 }
                 catch (final RewindableException e)

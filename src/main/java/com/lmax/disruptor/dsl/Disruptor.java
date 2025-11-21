@@ -583,7 +583,7 @@ public class Disruptor<T>
             {
                 ringBuffer.removeGatingSequence(barrierSequence);
             }
-            // 3. 同时也告诉这个消费者组，下次如果再有人接在 B 后面（比如 .then(C)），
+            // 3. 同时也告诉这个消费者组，下次如果再有消费者接在B后面（比如 .then(C)），
             // B 就变成了由于旧的序列，需要被移除
             consumerRepository.unMarkEventProcessorsAsEndOfChain(barrierSequences);
         }
