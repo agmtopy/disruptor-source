@@ -16,11 +16,13 @@
 package com.lmax.disruptor;
 
 /**
+ * 用于协调声明序列号用于访问RingBuffer
  * Coordinates claiming sequences for access to a data structure while tracking dependent {@link Sequence}s
  */
 public interface Sequencer extends Cursored, Sequenced
 {
     /**
+     * 设置初始位置为-1
      * Set to -1 as sequence starting point
      */
     long INITIAL_CURSOR_VALUE = -1L;
@@ -34,6 +36,7 @@ public interface Sequencer extends Cursored, Sequenced
     void claim(long sequence);
 
     /**
+     * 判断是否是可用的
      * Confirms if a sequence is published and the event is available for use; non-blocking.
      *
      * @param sequence of the buffer to check
@@ -42,6 +45,7 @@ public interface Sequencer extends Cursored, Sequenced
     boolean isAvailable(long sequence);
 
     /**
+     * 添加处理序号Sequence
      * Add the specified gating sequences to this instance of the Disruptor.  They will
      * safely and atomically added to the list of gating sequences.
      *
@@ -50,6 +54,7 @@ public interface Sequencer extends Cursored, Sequenced
     void addGatingSequences(Sequence... gatingSequences);
 
     /**
+     * 移除处理序号Sequence
      * Remove the specified sequence from this sequencer.
      *
      * @param sequence to be removed.
@@ -58,6 +63,7 @@ public interface Sequencer extends Cursored, Sequenced
     boolean removeGatingSequence(Sequence sequence);
 
     /**
+     * 创建一个新的SequenceBarrier
      * Create a new SequenceBarrier to be used by an EventProcessor to track which messages
      * are available to be read from the ring buffer given a list of sequences to track.
      *
@@ -68,6 +74,7 @@ public interface Sequencer extends Cursored, Sequenced
     SequenceBarrier newBarrier(Sequence... sequencesToTrack);
 
     /**
+     * 获取最慢消费组的消费序号
      * Get the minimum sequence value from all of the gating sequences
      * added to this ringBuffer.
      *
@@ -77,6 +84,7 @@ public interface Sequencer extends Cursored, Sequenced
     long getMinimumSequence();
 
     /**
+     * 计算并返回消费者当前可以安全消费的、不包含任何间隙的最高（最大）连续序号
      * Get the highest sequence number that can be safely read from the ring buffer.  Depending
      * on the implementation of the Sequencer this call may need to scan a number of values
      * in the Sequencer.  The scan will range from nextSequence to availableSequence.  If
@@ -91,6 +99,7 @@ public interface Sequencer extends Cursored, Sequenced
     long getHighestPublishedSequence(long nextSequence, long availableSequence);
 
     /**
+     * 创建EventPoller
      * Creates an event poller from this sequencer
      *
      * @param provider from which events are drawn
