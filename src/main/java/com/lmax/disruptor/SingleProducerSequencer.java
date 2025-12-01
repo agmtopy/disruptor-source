@@ -49,11 +49,14 @@ abstract class SingleProducerSequencerFields extends SingleProducerSequencerPad
     /**
      * Set to -1 as sequence starting point
      */
+    //下一个序号
     long nextValue = Sequence.INITIAL_VALUE;
+    //最小消费者进度的本地缓存
     long cachedValue = Sequence.INITIAL_VALUE;
 }
 
 /**
+ * 单生产者的序列协调类
  * Coordinator for claiming sequences for access to a data structure while tracking dependent {@link Sequence}s.
  * Not safe for use from multiple threads as it does not implement any barriers.
  *
@@ -84,6 +87,7 @@ public final class SingleProducerSequencer extends SingleProducerSequencerFields
     }
 
     /**
+     * 是否还有可用容量
      * @see Sequencer#hasAvailableCapacity(int)
      */
     @Override
@@ -92,13 +96,30 @@ public final class SingleProducerSequencer extends SingleProducerSequencerFields
         return hasAvailableCapacity(requiredCapacity, false);
     }
 
+    /**
+     * 是否还有可用容量
+     * @param requiredCapacity
+     * @param doStore
+     * @return
+     */
+    /**
+     * 检查是否有足够的容量来存储指定数量的元素
+     *
+     * @param requiredCapacity 所需的容量大小
+     * @param doStore 是否需要存储当前序列值
+     * @return 如果有足够容量返回true，否则返回false
+     */
     private boolean hasAvailableCapacity(final int requiredCapacity, final boolean doStore)
     {
         long nextValue = this.nextValue;
 
+        // 计算环绕点，即下一个值加上所需容量后得到所需要的序号大小,在用这个序号减去数组长度,得到需要被覆盖的数据的最大索引地址
         long wrapPoint = (nextValue + requiredCapacity) - bufferSize;
         long cachedGatingSequence = this.cachedValue;
 
+        // 检查是否需要更新门控序列,当wrapPoint大于当前的最小的消费序列号时,表示当前的没有足够的空间,需要进一步进行检查
+        // 或当前序列值是否超出范围
+        // 都需要重新进行检查
         if (wrapPoint > cachedGatingSequence || cachedGatingSequence > nextValue)
         {
             if (doStore)
@@ -106,17 +127,21 @@ public final class SingleProducerSequencer extends SingleProducerSequencerFields
                 cursor.setVolatile(nextValue);  // StoreLoad fence
             }
 
+            // 获取所有门控序列中的最小值作为新的缓存值
             long minSequence = Util.getMinimumSequence(gatingSequences, nextValue);
+            //原cachedValue已过期,需要重新赋值
             this.cachedValue = minSequence;
 
+            // 如果环绕点超过了最小序列值，说明没有足够空间
             if (wrapPoint > minSequence)
             {
                 return false;
             }
         }
-
+        //直接返回true
         return true;
     }
+
 
     /**
      * @see Sequencer#next()
