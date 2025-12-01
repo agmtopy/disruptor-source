@@ -60,10 +60,13 @@ public final class Util
      */
     public static long getMinimumSequence(final Sequence[] sequences, final long minimum)
     {
+        //设置当前最小序列号
         long minimumSequence = minimum;
+        //递归循环比较获取最小的序列号
         for (int i = 0, n = sequences.length; i < n; i++)
         {
             long value = sequences[i].get();
+            //对比获取更小值
             minimumSequence = Math.min(minimumSequence, value);
         }
 

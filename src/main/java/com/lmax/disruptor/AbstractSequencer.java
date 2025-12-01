@@ -21,6 +21,8 @@ import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
 /**
+ * AbstractSequencer各种实现的基类
+ *
  * Base class for the various sequencer types (single/multi).  Provides
  * common functionality like the management of gating sequences (add/remove) and
  * ownership of the current cursor.
@@ -30,12 +32,17 @@ public abstract class AbstractSequencer implements Sequencer
     private static final AtomicReferenceFieldUpdater<AbstractSequencer, Sequence[]> SEQUENCE_UPDATER =
         AtomicReferenceFieldUpdater.newUpdater(AbstractSequencer.class, Sequence[].class, "gatingSequences");
 
+    //bufferSize,用于标识数组长度,在初始化过程中就是由RingBuffer设置的长度字段向下传递过来的
     protected final int bufferSize;
+    //消费者的等待策略
     protected final WaitStrategy waitStrategy;
+    //声明序号cursor(光标),即代表生产者的进度
     protected final Sequence cursor = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
+    //volatile修饰的Sequence数组,用于存储RingBuffer上所有消费者当前的进度标记(Sequence对象)的集合
     protected volatile Sequence[] gatingSequences = new Sequence[0];
 
     /**
+     * 初始化方法,形参为容量和等待策略
      * Create with the specified buffer size and wait strategy.
      *
      * @param bufferSize   The total number of entries, must be a positive power of 2.
@@ -47,16 +54,19 @@ public abstract class AbstractSequencer implements Sequencer
         {
             throw new IllegalArgumentException("bufferSize must not be less than 1");
         }
+        //通用校验,数组的长度必须是2的倍数
         if (Integer.bitCount(bufferSize) != 1)
         {
             throw new IllegalArgumentException("bufferSize must be a power of 2");
         }
 
+        //设置数组大小和消费等待策略
         this.bufferSize = bufferSize;
         this.waitStrategy = waitStrategy;
     }
 
     /**
+     * 获取光标Cursor
      * @see Sequencer#getCursor()
      */
     @Override
@@ -66,6 +76,7 @@ public abstract class AbstractSequencer implements Sequencer
     }
 
     /**
+     * 获取数组容量
      * @see Sequencer#getBufferSize()
      */
     @Override
@@ -75,6 +86,7 @@ public abstract class AbstractSequencer implements Sequencer
     }
 
     /**
+     * 添加Sequences
      * @see Sequencer#addGatingSequences(Sequence...)
      */
     @Override
@@ -84,6 +96,7 @@ public abstract class AbstractSequencer implements Sequencer
     }
 
     /**
+     * 移除Sequences
      * @see Sequencer#removeGatingSequence(Sequence)
      */
     @Override
@@ -93,6 +106,7 @@ public abstract class AbstractSequencer implements Sequencer
     }
 
     /**
+     * 获取当前最小的消费序列
      * @see Sequencer#getMinimumSequence()
      */
     @Override
@@ -102,6 +116,7 @@ public abstract class AbstractSequencer implements Sequencer
     }
 
     /**
+     * 获取新的屏障
      * @see Sequencer#newBarrier(Sequence...)
      */
     @Override
@@ -111,6 +126,7 @@ public abstract class AbstractSequencer implements Sequencer
     }
 
     /**
+     * 创建新的EventPoller
      * Creates an event poller for this sequence that will use the supplied data provider and
      * gating sequences.
      *
