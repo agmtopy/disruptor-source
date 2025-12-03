@@ -24,6 +24,7 @@ import java.util.concurrent.locks.LockSupport;
 
 
 /**
+ * 多线程场景下的生产者序号协调器
  * Coordinator for claiming sequences for access to a data structure while tracking dependent {@link Sequence}s.
  * Suitable for use for sequencing across multiple publisher threads.
  *
@@ -33,14 +34,18 @@ import java.util.concurrent.locks.LockSupport;
  */
 public final class MultiProducerSequencer extends AbstractSequencer
 {
+    //获取更原始的数组操作方法,VarHandle这个类值得学习
     private static final VarHandle AVAILABLE_ARRAY = MethodHandles.arrayElementVarHandle(int[].class);
-
+    //初始化最小消费点
     private final Sequence gatingSequenceCache = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
 
     // availableBuffer tracks the state of each ringbuffer slot
     // see below for more details on the approach
+    //跟踪Buffer数组中每一个slot的状态
     private final int[] availableBuffer;
+    //位掩码，用于快速计算序列号在缓冲区中的索引位置
     private final int indexMask;
+    //位移量，用于计算可用性标志位,标识圈数
     private final int indexShift;
 
     /**
@@ -52,10 +57,14 @@ public final class MultiProducerSequencer extends AbstractSequencer
     public MultiProducerSequencer(final int bufferSize, final WaitStrategy waitStrategy)
     {
         super(bufferSize, waitStrategy);
+        //创建状态映射数组
         availableBuffer = new int[bufferSize];
+        //初始化状态映射数组中每个值为-1
         Arrays.fill(availableBuffer, -1);
 
+        //设置位掩码
         indexMask = bufferSize - 1;
+        //位移量,即为数值1的最高位的位置数
         indexShift = Util.log2(bufferSize);
     }
 
@@ -68,11 +77,23 @@ public final class MultiProducerSequencer extends AbstractSequencer
         return hasAvailableCapacity(gatingSequences, requiredCapacity, cursor.get());
     }
 
+    /**
+     * 判断是否还有可用位置
+     * PS:是在多线程场景下进行判断
+     * @param gatingSequences
+     * @param requiredCapacity  需要的空间数量
+     * @param cursorValue   当前生产者生产的位置
+     * @return 是否还有所需空间
+     */
     private boolean hasAvailableCapacity(final Sequence[] gatingSequences, final int requiredCapacity, final long cursorValue)
     {
+        //计算环绕点位置,(生产者位置 + 所需位置) - 数组长度,得到新的环绕点位置,也就是本次新申请结束写入覆盖的位置
         long wrapPoint = (cursorValue + requiredCapacity) - bufferSize;
+        //获取最小的消费位置
         long cachedGatingSequence = gatingSequenceCache.get();
 
+        // 检查是否需要更新门控序列,当wrapPoint大于当前的最小的消费序列号时,表示当前的没有足够的空间,需要进一步进行检查
+        // 或当前序列值是否超出范围,与SingleProducerSequencer.hasAvailableCapacity方法的处理逻辑类似
         if (wrapPoint > cachedGatingSequence || cachedGatingSequence > cursorValue)
         {
             long minSequence = Util.getMinimumSequence(gatingSequences, cursorValue);
@@ -97,6 +118,7 @@ public final class MultiProducerSequencer extends AbstractSequencer
     }
 
     /**
+     * 核心方法,获取下一个序号
      * @see Sequencer#next()
      */
     @Override
@@ -116,23 +138,30 @@ public final class MultiProducerSequencer extends AbstractSequencer
             throw new IllegalArgumentException("n must be > 0 and < bufferSize");
         }
 
+        //计算生产者进度,当前生产者进度+n赋值到cursor上,返回原cursor的值
         long current = cursor.getAndAdd(n);
-
+        //得到写入之后的值
         long nextSequence = current + n;
+        //得到循环点
         long wrapPoint = nextSequence - bufferSize;
+        //得到当前最慢的消费点
         long cachedGatingSequence = gatingSequenceCache.get();
 
+        //判断如果循环点大于消费点说明,本次写入会覆盖,因此需要等待消费位点
+        //如果最慢的消费位点大于当前生产者位点,说明GatingSequence已过期
         if (wrapPoint > cachedGatingSequence || cachedGatingSequence > current)
         {
             long gatingSequence;
+            //获取最新的消费位点,如果循环点还是大于消费位点,证明本次写入还是会覆盖,继续等待
             while (wrapPoint > (gatingSequence = Util.getMinimumSequence(gatingSequences, current)))
             {
                 LockSupport.parkNanos(1L); // TODO, should we spin based on the wait strategy?
             }
-
+            //将gatingSequenceCache设置成最新的值
             gatingSequenceCache.set(gatingSequence);
         }
 
+        //返回写入之后的值
         return nextSequence;
     }
 
