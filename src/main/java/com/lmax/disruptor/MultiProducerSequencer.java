@@ -138,7 +138,7 @@ public final class MultiProducerSequencer extends AbstractSequencer
             throw new IllegalArgumentException("n must be > 0 and < bufferSize");
         }
 
-        //计算生产者进度,当前生产者进度+n赋值到cursor上,返回原cursor的值
+        //关键点1:计算生产者进度,当前生产者进度+n赋值到cursor上,返回原cursor的值,使用VarHandle实现
         long current = cursor.getAndAdd(n);
         //得到写入之后的值
         long nextSequence = current + n;
@@ -147,12 +147,12 @@ public final class MultiProducerSequencer extends AbstractSequencer
         //得到当前最慢的消费点
         long cachedGatingSequence = gatingSequenceCache.get();
 
-        //判断如果循环点大于消费点说明,本次写入会覆盖,因此需要等待消费位点
+        //关键点2:判断如果循环点大于消费点说明,本次写入会覆盖,因此需要等待消费位点
         //如果最慢的消费位点大于当前生产者位点,说明GatingSequence已过期
         if (wrapPoint > cachedGatingSequence || cachedGatingSequence > current)
         {
             long gatingSequence;
-            //获取最新的消费位点,如果循环点还是大于消费位点,证明本次写入还是会覆盖,继续等待
+            //关键点3:获取最新的消费位点,如果循环点还是大于消费位点,证明本次写入还是会覆盖,继续等待
             while (wrapPoint > (gatingSequence = Util.getMinimumSequence(gatingSequences, current)))
             {
                 LockSupport.parkNanos(1L); // TODO, should we spin based on the wait strategy?
@@ -190,14 +190,17 @@ public final class MultiProducerSequencer extends AbstractSequencer
 
         do
         {
+            //设置当前生产位点
             current = cursor.get();
+            //设置本次生产更新后的位点
             next = current + n;
-
+            //容量不够时直接抛出异常
             if (!hasAvailableCapacity(gatingSequences, n, current))
             {
                 throw InsufficientCapacityException.INSTANCE;
             }
         }
+        //通过CAS的方式更新
         while (!cursor.compareAndSet(current, next));
 
         return next;

@@ -160,6 +160,7 @@ public class Sequence extends RhsPadding
      */
     public long getAndAdd(final long increment)
     {
+        //多线程原子实现
         return (long) VALUE_FIELD.getAndAdd(this, increment);
     }
 
